@@ -1,0 +1,22 @@
+;; Generic Cortex-M bootloader scatter template
+;; Edit addresses to match platforms/<mcu>/boot_target_config.h
+;;
+;; Typical STM32F4:
+;;   IROM 0x08000000  stub 16 KB + meta 8 KB empty + APP follows
+;;   IRAM 0x20000000
+LR_IROM_BOOT 0x08000000 0x00004000  {
+  ER_IROM_BOOT 0x08000000 0x00002000  {
+   boot_stub_startup.o (STUB_RESET, +First)
+   boot_stub_startup.o (+RO)
+   boot_stub.o (+RO)
+   boot_meta.o (+RO)
+   boot_core.o (+RO, .ramfunc)
+   boot_storage.o (+RO, .ramfunc)
+   * (.ramfunc)
+   .ANY (+RO)
+  }
+  ER_IROM_META 0x08002000 EMPTY 0x00002000 { }
+  RW_IRAM1 0x20000000 0x00020000 {
+   .ANY (+RW +ZI)
+  }
+}

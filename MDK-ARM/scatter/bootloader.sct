@@ -1,0 +1,3 @@
+;; HC32F460 bootloader scatter — canonical copy lives in:
+;;   BootRAM/platforms/hc32f460/bootloader.sct
+;; Keil project points to that file directly.

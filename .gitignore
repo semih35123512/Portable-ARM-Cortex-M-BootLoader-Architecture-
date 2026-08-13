@@ -1,0 +1,26 @@
+# Keil / build artifacts
+MDK-ARM/Objects/
+MDK-ARM/Listings/
+MDK-ARM/DebugConfig/
+*.axf
+*.map
+*.o
+*.crf
+*.d
+*.htm
+*.lnp
+*.dep
+*.build_log.htm
+*.uvguix.*
+*.bak
+*.dbgconf
+# Tool / IDE noise
+.vscode/
+*.swp
+*~
+
+# Cursor
+.cursor/
+
+# Local proprietary product glue (do not publish)
+private/

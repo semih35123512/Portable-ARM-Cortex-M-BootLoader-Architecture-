@@ -1,0 +1,25 @@
+;; HC32F460 bootloader scatter (addresses from boot_target_config.h)
+;; BOOT_LINKER_IROM_START=0x00000000  BOOT_LINKER_IROM_SIZE=0x80000
+;; BOOT_LINKER_IRAM_START=0x1FFF8000 BOOT_LINKER_IRAM_SIZE=0x2E000
+LR_IROM_BOOT 0x00000000 0x00004000  {
+  ER_IROM_BOOT 0x00000000 0x00002000  {
+   boot_stub_startup.o (STUB_RESET, +First)
+   boot_stub_startup.o (+RO)
+   boot_stub.o (+RO)
+   boot_meta.o (+RO)
+   boot_core.o (+RO, .ramfunc)
+   boot_storage.o (+RO, .ramfunc)
+   boot_hc32f460_ram_driver.o (+RO, .ramfunc)
+   boot_hc32f460_driver_adapter.o (+RO, .ramfunc)
+   boot_port_hc32f460_impl.o (+RO, .ramfunc)
+   boot_storage_hc32f460_impl.o (+RO, .ramfunc)
+   boot_board_hc32f460_impl.o (+RO, .ramfunc)
+   boot_hc32f460_link_stubs.o (+RO)
+   * (.ramfunc)
+   .ANY (+RO)
+  }
+  ER_IROM_META 0x00002000 EMPTY 0x00002000 { }
+  RW_IRAM1 0x1FFF8000 0x0002E000 {
+   .ANY (+RW +ZI)
+  }
+}
