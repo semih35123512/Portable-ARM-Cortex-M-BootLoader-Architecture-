@@ -50,6 +50,7 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
     boot_hook_set_fw_slot(slot);
 
     boot_port_disable_irq();
+    boot_port_iap_gpio_init();
     boot_port_spi_config();
 
     while(1)
@@ -72,7 +73,7 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
         if(!boot_storage_get_first_firmware_node(&process_node))
         {
 					  boot_meta_set_fail();
-            boot_port_fail_and_reset(slot);
+            boot_port_finish_and_reset(slot, 0U);
         }
 
         read_size = (uint16_t)(port_cfg->sector_size - file_bin_start_point);
@@ -84,7 +85,7 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
         if(!boot_storage_read_node_payload(process_node, file_bin_start_point, buffer_stream, read_size))
         {
 					  boot_meta_set_fail();
-            boot_port_fail_and_reset(slot);
+            boot_port_finish_and_reset(slot, 0U);
         }
 
         buffer_size += read_size;
@@ -101,12 +102,12 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
             if(!boot_storage_read_next_node(process_node, &process_node))
             {
 							  boot_meta_set_fail();
-                boot_port_fail_and_reset(slot);
+                boot_port_finish_and_reset(slot, 0U);
             }
             if(!boot_storage_read_node_payload(process_node, 0U, &buffer_stream[buffer_size], read_size))
             {
 							 	boot_meta_set_fail();
-                boot_port_fail_and_reset(slot);
+                boot_port_finish_and_reset(slot, 0U);
             }
 
             buffer_size += read_size;
@@ -157,7 +158,7 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
                 if(spi_data_crc_second_chance > 1U)
                 {
                     (void)boot_meta_set_fail();
-                    boot_port_fail_and_reset(slot);
+                    boot_port_finish_and_reset(slot, 0U);
                 }
             }
         }
@@ -169,7 +170,7 @@ BOOT_RAM_FUNC void boot_core_firmware_update(uint32_t binary_file_size,
             if(expected_crc == crc_result)
             {
                 (void)boot_meta_set_programmed();
-                boot_port_fail_and_reset(slot);
+                boot_port_finish_and_reset(slot, 1U);
             }
         }
 

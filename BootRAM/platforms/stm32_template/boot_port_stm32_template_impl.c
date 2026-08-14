@@ -21,6 +21,7 @@ static const boot_port_cfg_t g_boot_port_cfg = {
 };
 
 BOOT_RAM_FUNC void boot_port_disable_irq(void) { /* __disable_irq(); */ }
+BOOT_RAM_FUNC void boot_port_iap_gpio_init(void) { /* IAP LED / WDT GPIO as outputs */ }
 BOOT_RAM_FUNC void boot_port_spi_config(void) { /* init SPI + CS GPIO */ }
 BOOT_RAM_FUNC void boot_port_spi_read(uint8_t *buffer, uint32_t address, uint16_t size)
 {
@@ -49,7 +50,12 @@ BOOT_RAM_FUNC void boot_port_crc_accumulate32(const uint32_t *data, uint32_t wor
     (void)word_count;
 }
 BOOT_RAM_FUNC uint32_t boot_port_crc_get(void) { return 0U; }
-BOOT_RAM_FUNC void boot_port_fail_and_reset(boot_fw_slot_t slot) { (void)slot; /* NVIC_SystemReset(); */ }
+BOOT_RAM_FUNC void boot_port_finish_and_reset(boot_fw_slot_t slot, uint8_t success)
+{
+    (void)slot;
+    (void)success;
+    /* NVIC_SystemReset(); */
+}
 
 const boot_port_cfg_t *boot_port_get_cfg(void)
 {

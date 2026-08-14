@@ -27,6 +27,7 @@ typedef struct
 /* ---- Implement these in platforms/<mcu>/boot_port_*_impl.c ---- */
 
 BOOT_RAM_FUNC void boot_port_disable_irq(void);
+BOOT_RAM_FUNC void boot_port_iap_gpio_init(void);
 BOOT_RAM_FUNC void boot_port_spi_config(void);
 BOOT_RAM_FUNC void boot_port_spi_read(uint8_t *buffer, uint32_t address, uint16_t size);
 BOOT_RAM_FUNC void boot_port_flash_erase_app_area(void);
@@ -37,8 +38,14 @@ BOOT_RAM_FUNC void boot_port_slider_lights(void);
 BOOT_RAM_FUNC void boot_port_crc_init(void);
 BOOT_RAM_FUNC void boot_port_crc_accumulate32(const uint32_t *data, uint32_t word_count);
 BOOT_RAM_FUNC uint32_t boot_port_crc_get(void);
-/** Wipe selected SPI FW window (CAND/GOOD) then reset. */
-BOOT_RAM_FUNC void boot_port_fail_and_reset(boot_fw_slot_t slot);
+/**
+ * End IAP (success or failure) then system reset. Does not return.
+ * @param slot    SPI window used for this update (CANDIDATE or GOOD)
+ * @param success 0 = failed, non-zero = programmed OK
+ *                Success + CANDIDATE: leave SPI image (no WriteByteZero).
+ *                Failure: wipe that slot, then reset.
+ */
+BOOT_RAM_FUNC void boot_port_finish_and_reset(boot_fw_slot_t slot, uint8_t success);
 
 const boot_port_cfg_t *boot_port_get_cfg(void);
 

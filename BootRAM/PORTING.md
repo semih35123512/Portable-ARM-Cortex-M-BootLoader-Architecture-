@@ -50,7 +50,7 @@ File: `platforms/user_template/boot_port_user_impl.c`
 | `boot_port_flash_program_page` | Program one `BOOT_TRANSFER_SIZE` chunk |
 | `boot_port_crc_*` | CRC32 init / accumulate / get |
 | `boot_port_feed_watchdog` | Kick IWDG/WDT |
-| `boot_port_fail_and_reset` | Cleanup + `NVIC_SystemReset` |
+| `boot_port_finish_and_reset` | End IAP (ok/fail) + `NVIC_SystemReset`; skip CAND wipe on success |
 | `boot_port_disable_irq` | Mask IRQs before IAP |
 | `boot_port_get_cfg` | Usually return struct filled from `boot_config.h` |
 
@@ -87,7 +87,7 @@ May be empty stubs.
 boot_core_firmware_update(binary_size, payload_offset_in_first_sector);
 ```
 
-Does not return on success (resets via `boot_port_fail_and_reset` after programmed verify path).
+Does not return on success (resets via `boot_port_finish_and_reset` after programmed verify path).
 
 ---
 

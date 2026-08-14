@@ -1740,6 +1740,60 @@ __RAM_FUNC void RAM_SPI_Cmd(CM_SPI_TypeDef *SPIx, en_functional_state_t enNewSta
         CLR_REG32_BIT(SPIx->CR1, SPI_CR1_SPE);
     }
 }
+
+__RAM_FUNC static void RAM_IapGpioInitPin(uint8_t port, uint16_t pin, uint16_t pin_state)
+{
+    stc_gpio_init_t stcPortInit;
+
+    (void)memset(&stcPortInit, 0, sizeof(stcPortInit));
+    stcPortInit.u16PinAttr = PIN_ATTR_DIGITAL;
+    stcPortInit.u16PinDir = PIN_DIR_OUT;
+    stcPortInit.u16PinDrv = PIN_HIGH_DRV;
+    stcPortInit.u16PinOutputType = PIN_OUT_TYPE_CMOS;
+    stcPortInit.u16PinState = pin_state;
+    (void)RAM_GPIO_Init(port, pin, &stcPortInit);
+}
+
+/* Stub rollback has no APP GPIO init — IAP LEDs / WD_CTRL must be outputs. */
+__RAM_FUNC void RAM_IapGpioInit(void)
+{
+    RAM_PORT_Unlock();
+
+    RAM_IapGpioInitPin(ROLE1_LED_Port, ROLE1_LED_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(ROLE2_LED_Port, ROLE2_LED_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RS485_LED_Port_1, RS485_LED_Pin_1, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RS485_LED_Port_2, RS485_LED_Pin_2, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RSSI_LED_1_Port, RSSI_LED_1_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RSSI_LED_2_Port, RSSI_LED_2_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RSSI_LED_3_Port, RSSI_LED_3_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RSSI_LED_4_Port, RSSI_LED_4_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(RSSI_LED_5_Port, RSSI_LED_5_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(SERVER_LED_Port, SERVER_LED_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(CLIENT_LED_Port, CLIENT_LED_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(LED_GSM_Port, LED_GSM_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(LEDR_GPIO_Port, LEDR_Pin, PIN_STAT_RST);
+    RAM_IapGpioInitPin(LEDB_GPIO_Port, LEDB_Pin, PIN_STAT_RST);
+    /* External WDT kick pin: hold idle high until transfer_begin toggles. */
+    RAM_IapGpioInitPin(WD_CTRL_GPIO_Port, WD_CTRL_Pin, PIN_STAT_SET);
+
+    RAM_PORT_Lock();
+
+    RAM_Board_LedOff(ROLE1_LED_Port, ROLE1_LED_Pin);
+    RAM_Board_LedOff(ROLE2_LED_Port, ROLE2_LED_Pin);
+    RAM_Board_LedOff(RS485_LED_Port_1, RS485_LED_Pin_1);
+    RAM_Board_LedOff(RS485_LED_Port_2, RS485_LED_Pin_2);
+    RAM_Board_LedOff(RSSI_LED_1_Port, RSSI_LED_1_Pin);
+    RAM_Board_LedOff(RSSI_LED_2_Port, RSSI_LED_2_Pin);
+    RAM_Board_LedOff(RSSI_LED_3_Port, RSSI_LED_3_Pin);
+    RAM_Board_LedOff(RSSI_LED_4_Port, RSSI_LED_4_Pin);
+    RAM_Board_LedOff(RSSI_LED_5_Port, RSSI_LED_5_Pin);
+    RAM_Board_LedOff(SERVER_LED_Port, SERVER_LED_Pin);
+    RAM_Board_LedOff(CLIENT_LED_Port, CLIENT_LED_Pin);
+    RAM_Board_LedOff(LED_GSM_Port, LED_GSM_Pin);
+    RAM_Board_LedOff(LEDR_GPIO_Port, LEDR_Pin);
+    RAM_Board_LedOff(LEDB_GPIO_Port, LEDB_Pin);
+}
+
 __RAM_FUNC void RAM_Spi_Config(void)
 {
     stc_spi_init_t stcSpiInit;
@@ -2443,9 +2497,13 @@ __RAM_FUNC void RAM_sFLASH_WipeFwSlot(boot_fw_slot_t slot)
 #endif
 }
 
-__RAM_FUNC void RAM_WipeFwSlotAndReset(boot_fw_slot_t slot)
+__RAM_FUNC void RAM_FinishAndReset(boot_fw_slot_t slot, uint8_t success)
 {
-    RAM_sFLASH_WipeFwSlot(slot);
+    /* Success + CANDIDATE: keep SPI image (no WriteByteZero; promote later). */
+////    if(!((success != 0U) && (slot == BOOT_FW_SLOT_CANDIDATE)))
+////    {
+////        RAM_sFLASH_WipeFwSlot(slot);
+////    }
 
     __DSB();
     SCB->AIRCR = (uint32_t)((0x5FAUL << SCB_AIRCR_VECTKEY_Pos) |

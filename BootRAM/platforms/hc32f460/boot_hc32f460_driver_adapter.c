@@ -3,6 +3,11 @@
 
 #include "boot_hc32f460_driver.h"
 
+void boot_hc32f460_iap_gpio_init(void)
+{
+    RAM_IapGpioInit();
+}
+
 void boot_hc32f460_spi_config(void)
 {
     RAM_Spi_Config();
@@ -48,9 +53,9 @@ uint32_t boot_hc32f460_crc_get(void)
     return RAM_CalcCRC32Get();
 }
 
-void boot_hc32f460_wipe_fw_slot_and_reset(boot_fw_slot_t slot)
+void boot_hc32f460_finish_and_reset(boot_fw_slot_t slot, uint8_t success)
 {
-    RAM_WipeFwSlotAndReset(slot);
+    RAM_FinishAndReset(slot, success);
 }
 
 int32_t boot_hc32f460_flash_erase(FLASH_EraseInitTypeDef *erase_init, uint32_t *page_error)

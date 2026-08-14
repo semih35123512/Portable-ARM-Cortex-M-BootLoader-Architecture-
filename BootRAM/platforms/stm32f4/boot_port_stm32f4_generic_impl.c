@@ -157,6 +157,10 @@ void boot_port_disable_irq(void)
     __disable_irq();
 }
 
+void boot_port_iap_gpio_init(void)
+{
+}
+
 void boot_port_spi_config(void)
 {
     boot_stm32f4_extflash_init();
@@ -272,9 +276,10 @@ uint32_t boot_port_crc_get(void)
     return ~g_boot_crc32;
 }
 
-void boot_port_fail_and_reset(boot_fw_slot_t slot)
+void boot_port_finish_and_reset(boot_fw_slot_t slot, uint8_t success)
 {
     (void)slot;
+    (void)success;
     NVIC_SystemReset();
 }
 

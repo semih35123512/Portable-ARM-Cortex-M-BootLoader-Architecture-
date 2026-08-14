@@ -12,6 +12,7 @@
  * boot_port/boot_board use only boot_hc32f460_* APIs.
  * Mapped in boot_hc32f460_driver_adapter.c to RAM_* in boot_hc32f460_ram_driver.c
  */
+void boot_hc32f460_iap_gpio_init(void);
 void boot_hc32f460_spi_config(void);
 bool boot_hc32f460_spi_read(uint8_t *buffer, uint32_t address, uint16_t size);
 void boot_hc32f460_led_on(uint8_t port, uint16_t pin);
@@ -21,13 +22,14 @@ void boot_hc32f460_slider_lights(void);
 void boot_hc32f460_crc_init(void);
 uint32_t boot_hc32f460_crc_accumulate_data32(const uint32_t data[], uint32_t word_count);
 uint32_t boot_hc32f460_crc_get(void);
-void boot_hc32f460_wipe_fw_slot_and_reset(boot_fw_slot_t slot);
+void boot_hc32f460_finish_and_reset(boot_fw_slot_t slot, uint8_t success);
 int32_t boot_hc32f460_flash_erase(FLASH_EraseInitTypeDef *erase_init, uint32_t *page_error);
 int32_t boot_hc32f460_flash_program(uint32_t address, uint32_t data);
 int32_t boot_hc32f460_port_set_bits(uint8_t port, uint16_t pin);
 int32_t boot_hc32f460_port_reset_bits(uint8_t port, uint16_t pin);
 
 /* Underlying HC32 low-level functions. */
+void RAM_IapGpioInit(void);
 void RAM_Spi_Config(void);
 bool RAM_sFLASH_ReadBuffer(uint8_t *pBuffer, uint32_t ReadAddr, uint16_t NumByteToRead);
 void RAM_Board_LedOn(uint8_t port, uint16_t pin);
@@ -37,7 +39,7 @@ void RAM_Slider_Lights(void);
 void RAM_CalcCRC32Init(void);
 uint32_t RAM_CRC_AccumulateData32(const uint32_t au32Data[], uint32_t u32Len);
 uint32_t RAM_CalcCRC32Get(void);
-void RAM_WipeFwSlotAndReset(boot_fw_slot_t slot);
+void RAM_FinishAndReset(boot_fw_slot_t slot, uint8_t success);
 /** MODE2: WriteByteZero wipe of CAND or GOOD SPI window (no reset). */
 void RAM_sFLASH_WipeFwSlot(boot_fw_slot_t slot);
 void RAM_sFLASH_WriteByteZero(uint32_t WriteAddr);

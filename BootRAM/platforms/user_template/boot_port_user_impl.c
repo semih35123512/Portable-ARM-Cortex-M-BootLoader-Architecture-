@@ -25,6 +25,11 @@ BOOT_RAM_FUNC void boot_port_disable_irq(void)
     /* TODO: __disable_irq(); */
 }
 
+BOOT_RAM_FUNC void boot_port_iap_gpio_init(void)
+{
+    /* TODO: IAP LED / external WDT GPIO as outputs (needed on stub rollback). */
+}
+
 BOOT_RAM_FUNC void boot_port_spi_config(void)
 {
     /* TODO: SPI + CS init for external flash (must be callable from RAM). */
@@ -60,7 +65,12 @@ BOOT_RAM_FUNC void boot_port_crc_accumulate32(const uint32_t *data, uint32_t wor
     (void)word_count;
 }
 BOOT_RAM_FUNC uint32_t boot_port_crc_get(void) { return 0U; }
-BOOT_RAM_FUNC void boot_port_fail_and_reset(boot_fw_slot_t slot) { (void)slot; /* TODO: NVIC_SystemReset(); */ }
+BOOT_RAM_FUNC void boot_port_finish_and_reset(boot_fw_slot_t slot, uint8_t success)
+{
+    (void)slot;
+    (void)success;
+    /* TODO: NVIC_SystemReset(); */
+}
 
 const boot_port_cfg_t *boot_port_get_cfg(void)
 {

@@ -1,6 +1,6 @@
 /**
  * @file boot_fw_zone_hc32f460.c
- * @brief MODE2: wipe GOOD → copy CAND→GOOD (256 B DMA pages) → wipe CAND.
+ * @brief MODE2: erase GOOD window → copy CAND→GOOD (256 B pages) → wipe CAND.
  *
  * MODE1 (product zone FS) is not part of the public reference; keep that
  * integration in a private product tree.
@@ -28,16 +28,14 @@ bool boot_fw_zone_commit_candidate_as_good(void)
 bool boot_fw_zone_commit_candidate_as_good(void)
 {
     boot_meta_t meta;
+    uint16_t sec;
     uint32_t remain;
-    uint16_t src_sec;
-    uint16_t dst_sec;
-    uint16_t last_src;
-    uint16_t last_dst;
-    uint8_t page[256];
-    uint32_t src_addr;
-    uint32_t dst_addr;
+    uint32_t src_base;
+    uint32_t dst_base;
     uint32_t off;
+    uint32_t page_left;
     uint16_t chunk;
+    uint8_t page[256];
     bool short_cmd;
 
     if(!boot_meta_read(&meta) || !boot_meta_is_valid(&meta))
@@ -51,70 +49,61 @@ bool boot_fw_zone_commit_candidate_as_good(void)
         return false;
     }
 
-    src_sec = (uint16_t)BOOT_SPI_FW_CAND_SECTOR_FIRST;
-    dst_sec = (uint16_t)BOOT_SPI_FW_GOOD_SECTOR_FIRST;
-    last_src = (uint16_t)BOOT_SPI_FW_CAND_SECTOR_LAST;
-    last_dst = (uint16_t)BOOT_SPI_FW_GOOD_SECTOR_LAST;
+    /* 1-based sector N => byte address (N-1) * sector_size (same as IAP). */
+////    cand_span = (((uint32_t)BOOT_SPI_FW_CAND_SECTOR_LAST - (uint32_t)BOOT_SPI_FW_CAND_SECTOR_FIRST) + 1U)
+////                * (uint32_t)BOOT_SPI_SECTOR_SIZE;
+////    good_span = (((uint32_t)BOOT_SPI_FW_GOOD_SECTOR_LAST - (uint32_t)BOOT_SPI_FW_GOOD_SECTOR_FIRST) + 1U)
+////                * (uint32_t)BOOT_SPI_SECTOR_SIZE;
+////    if(((uint32_t)meta.good_payload_start + remain > cand_span) ||
+////       ((uint32_t)meta.good_payload_start + remain > good_span))
+////    {
+////        return false;
+////    }
 
-    /* 3-byte cmd when chip is not in 4-byte address mode. */
-    short_cmd = (sFLASH_SPI_4BYTE_ADR_MODE[0] == false);
+    short_cmd = true;
 
-    /* 1) Wipe old GOOD window (WriteByteZero over GOOD sector range). */
-    RAM_sFLASH_WipeFwSlot(BOOT_FW_SLOT_GOOD);
+    /* 1) Erase GOOD window: every sector from FIRST through LAST. */
+    for(sec = (uint16_t)BOOT_SPI_FW_GOOD_SECTOR_FIRST;
+        sec <= (uint16_t)BOOT_SPI_FW_GOOD_SECTOR_LAST;
+        sec++)
+    {
+        if(!sFLASH_EraseSector(((uint32_t)sec ) * (uint32_t)BOOT_SPI_SECTOR_SIZE))
+        {
+            return false;
+        }
+    }
 
-    /* 2) Copy CAND → GOOD in 256-byte pages via SpiFlash_WritePageDMA. */
+    /* 2) Copy CAND → GOOD in 256-byte pages (do not cross NOR page boundary). */
+    src_base = (((uint32_t)BOOT_SPI_FW_CAND_SECTOR_FIRST ) * (uint32_t)BOOT_SPI_SECTOR_SIZE)
+               + (uint32_t)meta.good_payload_start;
+    dst_base = (((uint32_t)BOOT_SPI_FW_GOOD_SECTOR_FIRST ) * (uint32_t)BOOT_SPI_SECTOR_SIZE)
+               + (uint32_t)meta.good_payload_start;
+
+    off = 0U;
     while(remain > 0U)
     {
-        if((src_sec > last_src) || (dst_sec > last_dst))
+        page_left = 256U - ((src_base + off) & 255U);
+        chunk = 256U;
+        if((uint32_t)chunk > page_left)
+        {
+            chunk = (uint16_t)page_left;
+        }
+        if((uint32_t)chunk > remain)
+        {
+            chunk = (uint16_t)remain;
+        }
+
+        if(!RAM_sFLASH_ReadBuffer(page, src_base + off, chunk))
+        {
+            return false;
+        }
+        if(SpiFlash_WritePageDMA(dst_base + off, page, chunk, short_cmd) != 0)
         {
             return false;
         }
 
-        /* 1-based sector N => address (N-1) * sector_size */
-        src_addr = ((uint32_t)(src_sec - 1U) * (uint32_t)BOOT_SPI_SECTOR_SIZE);
-        dst_addr = ((uint32_t)(dst_sec - 1U) * (uint32_t)BOOT_SPI_SECTOR_SIZE);
-
-        if(!sFLASH_EraseSector(dst_addr))
-        {
-            return false;
-        }
-
-        off = 0U;
-        while(off < (uint32_t)BOOT_SPI_SECTOR_SIZE)
-        {
-            chunk = 256U;
-            if(chunk > (uint16_t)((uint32_t)BOOT_SPI_SECTOR_SIZE - off))
-            {
-                chunk = (uint16_t)((uint32_t)BOOT_SPI_SECTOR_SIZE - off);
-            }
-            if((uint32_t)chunk > remain)
-            {
-                chunk = (uint16_t)remain;
-            }
-            if(chunk == 0U)
-            {
-                break;
-            }
-
-            if(!sFLASH_ReadBuffer(page, src_addr + off, chunk))
-            {
-                return false;
-            }
-
-            if(SpiFlash_WritePageDMA(dst_addr + off, page, chunk, short_cmd) != 0)
-            {
-                return false;
-            }
-            while(!sFLASH_DMACheckProcessFinish())
-            {
-            }
-
-            off += (uint32_t)chunk;
-            remain -= (uint32_t)chunk;
-        }
-
-        src_sec++;
-        dst_sec++;
+        off += (uint32_t)chunk;
+        remain -= (uint32_t)chunk;
     }
 
     /* 3) Wipe CAND window after successful promote. */

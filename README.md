@@ -1,216 +1,243 @@
-# cortexm-spi-bootloader
+# Portable ARM Cortex-M Bootloader with SPI NOR Staging and Rollback
 
-Cortex-M için **SPI NOR üzerinden FOTA / IAP** bootloader iskeleti.  
-Referans port: **HDSC HC32F460** (Keil µVision). Çekirdek MCU bağımsız; STM32 ve diğer hedefler için port şablonları mevcut.
+A portable ARM Cortex-M bootloader / IAP architecture designed for reliable firmware updates using external SPI NOR Flash.
 
-SPI’ye stage edilmiş firmware imajını CRC ile doğrular, uygulama flash’ını siler/programlar; kritik yol **RAM’den** çalışır. Reset stub, başarısız veya yarım kalan güncellemede **GOOD** imaja rollback yapar.
+The project separates the MCU-independent bootloader core from target-specific hardware implementations through a platform abstraction layer.
 
----
+The main design goal is to make the firmware update state machine, metadata handling, firmware slot management and rollback mechanism reusable across ARM Cortex-M targets, while MCU-specific Flash, SPI, CRC, watchdog, reset and memory-map operations remain inside the target platform layer.
 
-## Özellikler
+> This project provides a portable Cortex-M bootloader architecture rather than a universal preconfigured binary for every Cortex-M MCU. Each target requires its own hardware port, memory map and linker configuration.
 
-- **MODE2 FIXED** SPI pencereleri: CANDIDATE + GOOD sektör aralıkları (ham binary)
-- **MODE1 ZONE** (opsiyonel): bağlı sektör / zone FS okuma
-- **boot_meta**: güncelleme durumu, cand/good size–CRC–startpoint (APP erase’ten bağımsız sayfa)
-- **Boot stub @0x0**: meta kontrolü, GOOD restore, APP jump (`VTOR` / `0x4000`)
-- **RAM IAP**: `BOOT_RAM_FUNC` ile erase/program sırasında flash’tan bağımsız yürütme
-- Port katmanı: SPI, iç flash, CRC32, WDT, reset — `platforms/<mcu>/`
 
----
+## Architecture
 
-## Mimari
+The bootloader is organized into three main layers:
 
 ```text
-                    ┌─────────────────┐
-   FOTA download ──►│ SPI CAND window │
-                    └────────┬────────┘
-                             │
- APP: RAM_ApplySpiFirmware ────┤  meta: cand_size / payload_start / cand_crc
-                             ▼
-                    ┌─────────────────┐
-                    │   boot_core     │  CRC verify → erase APP → program
-                    │  (from RAM)     │
-                    └────────┬────────┘
-                             │ reset
-                             ▼
-                    ┌─────────────────┐
-   Reset @0 ───────►│   boot_stub     │  meta / GOOD rollback / jump APP
-                    └─────────────────┘
-                             │
-                             ▼  healthy boot
-                    boot_fw_on_app_healthy() → BOOT_OK + CAND→GOOD promote
-```
+                    Application
+                         │
+                         │ BOOT_OK
+                         ▼
+              ┌─────────────────────┐
+              │     Boot Stub       │
+              │                     │
+              │ Metadata validation │
+              │ Rollback decision   │
+              │ Vector validation   │
+              │ Application jump    │
+              └──────────┬──────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │     Boot Core       │
+              │                     │
+              │ Firmware selection  │
+              │ CRC verification    │
+              │ Flash programming   │
+              │ Metadata handling   │
+              └──────────┬──────────┘
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │ Platform Abstraction│
+              │                     │
+              │ SPI                 │
+              │ Internal Flash      │
+              │ CRC                 │
+              │ Watchdog            │
+              │ Reset               │
+              │ Target configuration│
+              └──────────┬──────────┘
+                         │
+             ┌───────────┼────────────┐
+             ▼           ▼            ▼
+          HC32F460     STM32F4     User Target
+		  
+		  
+		  ## What is Portable?
 
-| Katman | Klasör / dosya | Rol |
-|--------|----------------|-----|
-| Config | `BootRAM/boot_config.h` | Flash haritası, SPI modu, sektör pencereleri |
-| Core | `BootRAM/boot_core.c` | MCU bağımsız IAP döngüsü |
-| Storage | `BootRAM/boot_storage.c` | SPI’den imaj okuma (ZONE / FIXED) |
-| Meta | `BootRAM/boot_meta.*` | Kalıcı IAP bayrakları |
-| Stub | `BootStub/` | Reset vektörü, rollback, APP jump |
-| Port | `BootRAM/platforms/*` | SPI / EFM / CRC / WDT |
-| Facade | `BootRAM/BootRAM.c` | `RAM_ApplySpiFirmware(...)` |
-| Keil | `MDK-ARM/` | HC32F460 demo hedefi |
+The following components are designed to remain independent from a specific MCU:
 
-Public API: `BootRAM/boot_api.h`
+- Bootloader core logic
+- Firmware update state machine
+- Firmware slot management
+- Persistent boot metadata
+- Candidate / Good firmware handling
+- CRC-based firmware validation
+- Boot attempt tracking
+- Rollback decision logic
+- SPI firmware storage abstraction
+- Boot/application handover logic
+- Generic Cortex-M porting interfaces
 
----
+A new Cortex-M target should be able to reuse the core logic while implementing its own platform layer.
 
-## Flash haritası (HC32 referans)
+## What is Portable?
 
-| Bölge | Adres | Boyut |
-|-------|--------|------|
-| Boot stub + IAP load | `0x00000000` … `0x00001FFF` | 8 KB |
-| **boot_meta** | `0x00002000` … `0x00003FFF` | 8 KB |
-| **APP** | `0x00004000` … `0x00077FFF` | 464 KB |
-| EEPROM emülatör | `0x00078000` … | değişmez |
+The following components are designed to remain independent from a specific MCU:
 
-APP vektör tablosu: `VECT_TAB_OFFSET = 0x4000` (APP projesinde aynı olmalı).
+- Bootloader core logic
+- Firmware update state machine
+- Firmware slot management
+- Persistent boot metadata
+- Candidate / Good firmware handling
+- CRC-based firmware validation
+- Boot attempt tracking
+- Rollback decision logic
+- SPI firmware storage abstraction
+- Boot/application handover logic
+- Generic Cortex-M porting interfaces
 
----
+A new Cortex-M target should be able to reuse the core logic while implementing its own platform layer.
 
-## SPI firmware pencereleri (MODE2)
+## Firmware Update Flow
 
-Varsayılan (4 MB / 1024 × 4 KB sektör, 1-based):
-
-| Slot | Sektörler | Kapasite |
-|------|-----------|----------|
-| **CANDIDATE** | 769 … 896 | 512 KB |
-| **GOOD** | 897 … 1024 | 512 KB |
-
-OTA indirme, ham `.bin` dosyasını **CANDIDATE** penceresine yazar. Aralığı `boot_config.h` içinde değiştirin; çakışma olmamalı.
-
----
-
-## Kullanım (APP tarafı)
-
-SPI’ye imaj yazıldıktan sonra:
-
-```c
-#include "boot_api.h"
-#include "BootRAM.h"
-
-/* image_size, payload_start, image_crc: FOTA metadata */
-RAM_ApplySpiFirmware(image_size,
-                   payload_start,
-                   image_crc,
-                   BOOT_FW_SLOT_CANDIDATE);
-```
-
-`RAM_ApplySpiFirmware`:
-
-1. Meta’ya `cand_size`, `cand_payload_start`, `cand_crc` (+ start node) yazar  
-2. CRC doğrulama → APP erase → program (RAM)  
-3. Başarıda `PROGRAMMED` + reset; stub APP’in `boot_ok` onayını bekler  
-
-Sağlıklı APP açılışında: `boot_fw_on_app_healthy()` (BOOT_OK + CAND→GOOD).
-
-Örnek: [`examples/example_after_spi_staged.c`](examples/example_after_spi_staged.c)
-
----
-
-## Derleme (Keil µVision)
-
-1. `MDK-ARM/cortexm-spi-bootloader.uvprojx` dosyasını açın  
-2. Device pack: **HDSC.HC32F460**  
-3. Compiler define (hedefte hazır):
-
-   `HC32F460`, `USE_DDL_DRIVER`, `BOOT_MCU_HC32F460`, `BOOT_SPI_FW_MODE=2`
-
-4. **CMSIS + HC32 LL Driver** include yolu (proje ayarı):
-
-   ```text
-   ../../Driver/cmsis/Include
-   ../../Driver/cmsis/Device/HDSC/hc32f4xx/Include
-   ../../Driver/hc32_ll_driver/inc
-   ```
-
-   Bu yollar `MDK-ARM`’a göre çözülür → repo’nun **üst dizininde** `Driver/` beklenir:
-
-   ```text
-   Parent/
-     Driver/                 ← HC32 LL + CMSIS (ana DCU paketinden)
-     cortexm-spi-bootloader/
-       MDK-ARM/
-       BootRAM/
-       BootStub/
-   ```
-
-   `Driver` yoksa derleme `hc32_ll.h` / `core_cm4.h` bulamaz. Ana OSOS DCU projesindeki `Driver` klasörünü bu konuma koyun veya junction/symlink oluşturun.
-
-5. Scatter: `BootRAM/platforms/hc32f460/bootloader.sct`
-
----
-
-## Depo yapısı
+The firmware update process follows a Candidate → Programmed → BOOT_OK → Good flow.
 
 ```text
-cortexm-spi-bootloader/
-├── BootRAM/                 # portable IAP core + platforms
-│   ├── platforms/
-│   │   ├── hc32f460/        # public HC32 reference
-│   │   │   ├── board/       # pins + SPI NOR macros (not product FS)
-│   │   │   └── bootloader.sct
-│   │   ├── stm32f4/
-│   │   ├── generic/
-│   │   └── user_template/
-│   ├── boot_api.h
-│   └── boot_config.h
-├── BootStub/
-├── examples/
-├── MDK-ARM/
-├── .gitignore               # Objects/, *.axf, private/, …
-├── PORTING.md
-└── README.md
-```
+Firmware Download
+       │
+       ▼
+External SPI NOR
+       │
+       ▼
+   CANDIDATE
+       │
+       │ Size + CRC validation
+       ▼
+Boot Core
+       │
+       ├── Erase application
+       ├── Program application
+       └── Verify programmed image
+       │
+       ▼
+   PROGRAMMED
+       │
+       ▼
+      RESET
+       │
+       ▼
+   Boot Stub
+       │
+       ├── Validate metadata
+       ├── Detect interrupted update
+       ├── Check boot attempts
+       ├── Roll back if required
+       └── Validate application vector
+       │
+       ▼
+   Application
+       │
+       │ Successful startup
+       ▼
+     BOOT_OK
+       │
+       ▼
+ CANDIDATE → GOOD
+ 
+ 
+ # Reliability / Rollback
 
-**Publish etmeyin:** `private/` (gitignore) — OSOS zone FS / ürün `ososFlash` / `ososRead` glue.  
-Public HC32 yolu meta + MODE2 sabit SPI pencereleri kullanır; ürün zone FS ayrı private mirror’da kalmalıdır.
+```markdown
+## Reliability and Rollback
 
----
+The bootloader is designed to prevent an interrupted or unhealthy firmware update from permanently replacing the last known-good firmware.
 
-## Başka MCU (STM32 / custom)
+The update state is persisted in boot metadata.
 
-Çekirdek (`boot_core`, `boot_storage`, `boot_meta`) taşınabilir.  
-Keil demo hedefi şu an **yalnızca HC32F460**.
+A simplified failure scenario:
 
-Adımlar: **[PORTING.md](PORTING.md)**  
-Şablon: `BootRAM/platforms/user_template/`
+```text
+CANDIDATE
+    │
+    ▼
+PROGRAMMED
+    │
+    ▼
+RESET
+    │
+    ▼
+Application starts
+    │
+    ├── BOOT_OK ───────► CANDIDATE → GOOD
+    │
+    └── Boot failure
+            │
+            ▼
+      Boot attempt count
+            │
+            ▼
+      Restore GOOD
+	  
+	  # Current implementations
 
-Özet:
+```markdown
+## Current Reference Implementations
 
-1. `BOOT_MCU_*` seçin, HC32 gruplarını build’den çıkarın  
-2. `boot_port_*` / hooks doldurun (SPI, flash, CRC, reset)  
-3. Flash haritasını ve scatter’ı güncelleyin  
-4. APP `VECT_TAB_OFFSET` = `BOOT_APP_FLASH_START`
+### HC32F460
 
----
+The HC32F460 implementation is the current reference target.
 
-## Meta durumları
+It demonstrates the complete platform integration including:
 
-| State | Anlam |
-|-------|--------|
-| `IDLE` | Normal çalışma |
-| `UPDATING` | Erase/program sürüyor (reset = kesinti) |
-| `PROGRAMMED` | Yazıldı; APP `boot_ok` bekleniyor |
-| `FAIL` | Açık hata kilidi → GOOD restore |
+- SPI NOR access
+- Internal Flash programming
+- CRC
+- Watchdog
+- Reset
+- Target memory configuration
+- Boot/application layout
+- Firmware storage
 
-Stub, `PROGRAMMED` ve `boot_ok==0` iken deneme sayısına göre GOOD’dan geri yükler.
+### STM32F4
 
----
+An STM32F4 implementation is provided as a reference/example port.
 
-## Dokümantasyon
+The memory map and target configuration must be adapted to the specific STM32F4 device.
 
-| Dosya | İçerik |
-|-------|--------|
-| [PORTING.md](PORTING.md) | MCU taşıma adımları |
-| [BootRAM/README.md](BootRAM/README.md) | IAP katmanları |
-| [BootStub/README.md](BootStub/README.md) | Stub, MODE1/2, flash map |
+### Generic / User Template
 
----
+The generic and user-template platforms provide a starting point for integrating the bootloader into another Cortex-M MCU.
 
-## Notlar
+The target-specific platform layer should implement the required hardware operations without modifying the portable bootloader core.
 
-- Bu depo ana DCU `Core/Boot*` ürün kodundan **bağımsız** bir yan / demo kopyadır; ana projeyi değiştirmez.  
-- MODE2’de OTA staging: ham binary → CANDIDATE sektör penceresi.  
-- `cand_*/...` gibi ifadeleri C yorumlarında kullanmayın (`*/` yorumu erken kapatır).
+
+## Current Limitations
+
+- The current fully integrated reference target is HC32F460.
+- STM32F4 is provided as a reference/example port.
+- New MCUs require a target-specific memory map and linker configuration.
+- CRC32 provides data integrity checking but not cryptographic authenticity.
+- Secure Boot is not currently implemented.
+- Firmware signature verification is not currently implemented.
+- Anti-rollback based on cryptographic version protection is not currently implemented.
+
+## Security Considerations
+
+The current implementation focuses primarily on firmware integrity and update reliability.
+
+CRC32 can detect accidental corruption but does not provide cryptographic authenticity.
+
+A production secure firmware update system should additionally consider:
+
+- SHA-256 image hashing
+- Digital signatures
+- ECDSA / RSA verification
+- Secure key storage
+- Anti-rollback protection
+- Hardware Root of Trust
+- Debug interface protection
+
+These are planned extensions rather than current features.
+
+## Roadmap
+
+- [ ] Host-side bootloader state-machine tests
+- [ ] Power-loss / failure-injection testing
+- [ ] Automated firmware image packaging
+- [ ] SHA-256 image verification
+- [ ] Digital signature verification
+- [ ] Anti-rollback protection
+- [ ] Additional Cortex-M reference ports
+- [ ] CI build validation

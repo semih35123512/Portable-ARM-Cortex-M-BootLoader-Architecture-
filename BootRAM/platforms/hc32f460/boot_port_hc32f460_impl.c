@@ -25,6 +25,11 @@ BOOT_RAM_FUNC void boot_port_disable_irq(void)
     __disable_irq();
 }
 
+BOOT_RAM_FUNC void boot_port_iap_gpio_init(void)
+{
+    boot_hc32f460_iap_gpio_init();
+}
+
 BOOT_RAM_FUNC void boot_port_spi_config(void)
 {
     boot_hc32f460_spi_config();
@@ -99,9 +104,9 @@ BOOT_RAM_FUNC uint32_t boot_port_crc_get(void)
     return boot_hc32f460_crc_get();
 }
 
-BOOT_RAM_FUNC void boot_port_fail_and_reset(boot_fw_slot_t slot)
+BOOT_RAM_FUNC void boot_port_finish_and_reset(boot_fw_slot_t slot, uint8_t success)
 {
-    boot_hc32f460_wipe_fw_slot_and_reset(slot);
+    boot_hc32f460_finish_and_reset(slot, success);
 }
 
 bool boot_port_meta_erase_page(void)
